@@ -66,7 +66,8 @@ The default `LLM_PROVIDER=ollama` in that file keeps everything fully offline.
 docker compose up -d ollama
 
 # 2. Pull a tool-capable model into the running Ollama container
-docker exec -it ollama ollama pull llama3.1
+docker exec -it ollama ollama list
+docker exec -it ollama ollama pull llama3.2:1b
 
 # 3. Build and start the web UI
 docker compose up -d agent

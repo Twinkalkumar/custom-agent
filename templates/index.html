@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>local-agent</title>
+<style>
+  :root {
+    --bg:        #0B0E0C;
+    --panel:     #10140F;
+    --border:    #262B21;
+    --text:      #E8D9B0;
+    --text-dim:  #6E6A5C;
+    --amber:     #E0A93B;
+    --green:     #7FB069;
+    --red:       #C1666B;
+    --mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .terminal {
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 48px);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: #0D110C;
+  }
+
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dots {
+    display: flex;
+    gap: 6px;
+    margin-right: 6px;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s ease;
+  }
+
+  .dot.connected { background: var(--green); }
+  .dot.disconnected { background: var(--red); }
+
+  .title-text {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+
+  .model-tag {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .reset-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .reset-btn:hover {
+    color: var(--text);
+    border-color: var(--text-dim);
+  }
+
+  .task-select {
+    background: var(--panel);
+    color: var(--amber);
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .task-select:hover {
+    border-color: var(--text-dim);
+  }
+
+  .log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 16px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .line {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .prompt {
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .prompt.user { color: var(--green); }
+  .prompt.agent { color: var(--amber); }
+  .prompt.system { color: var(--text-dim); }
+
+  .content { color: var(--text); }
+  .content.system { color: var(--text-dim); font-style: italic; }
+  .content.tool { color: var(--text-dim); font-size: 13px; }
+
+  .inputbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: #0D110C;
+  }
+
+  .inputbar .prompt { color: var(--green); font-size: 14px; }
+
+  #message-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    caret-color: var(--amber);
+  }
+
+  #message-input::placeholder { color: var(--text-dim); }
+
+  .send-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .send-btn:hover:not(:disabled) {
+    border-color: var(--amber);
+  }
+
+  .send-btn:disabled {
+    color: var(--text-dim);
+    cursor: default;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    background: var(--amber);
+    animation: blink 1s steps(1) infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cursor { animation: none; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="terminal">
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <div class="dots">
+        <div class="dot" id="status-dot" title="checking connection..."></div>
+      </div>
+      <span class="title-text">local-agent</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <select id="task-select" class="task-select" title="active task"></select>
+      <span class="model-tag" id="model-tag">model: {{ model }}</span>
+      <button class="reset-btn" id="reset-btn">reset</button>
+    </div>
+  </div>
+
+  <div class="log" id="log">
+    <div class="line">
+      <span class="prompt system">#</span>
+      <span class="content system">connected to local model — ask anything, it'll search the web on its own when it needs to.</span>
+    </div>
+  </div>
+
+  <div class="inputbar">
+    <span class="prompt">&gt;</span>
+    <input id="message-input" type="text" placeholder="type a message and press enter" autocomplete="off" autofocus />
+    <button class="send-btn" id="send-btn">send</button>
+  </div>
+</div>
+
+<script>
+  const log = document.getElementById('log');
+  const input = document.getElementById('message-input');
+  const sendBtn = document.getElementById('send-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const statusDot = document.getElementById('status-dot');
+  const taskSelect = document.getElementById('task-select');
+
+  const initialTasks = {{ tasks | tojson }};
+  const initialTask = "{{ current_task }}";
+
+  function populateTasks() {
+    taskSelect.innerHTML = '';
+    initialTasks.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = t.name;
+      opt.title = t.description;
+      if (t.name === initialTask) opt.selected = true;
+      taskSelect.appendChild(opt);
+    });
+  }
+  populateTasks();
+
+  taskSelect.addEventListener('change', async () => {
+    const name = taskSelect.value;
+    await fetch('/api/select_task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: name }),
+    });
+    log.innerHTML = '';
+    const desc = initialTasks.find(t => t.name === name)?.description || '';
+    addLine('#', 'system', `switched to '${name}' — ${desc}`, 'system');
+  });
+
+  function addLine(promptChar, promptClass, text, contentClass = '') {
+    const line = document.createElement('div');
+    line.className = 'line';
+    line.innerHTML = `<span class="prompt ${promptClass}">${promptChar}</span><span class="content ${contentClass}"></span>`;
+    line.querySelector('.content').textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+    return line;
+  }
+
+  function addThinking() {
+    const line = document.createElement('div');
+    line.className = 'line';
+    line.id = 'thinking-line';
+    line.innerHTML = `<span class="prompt agent">$</span><span class="content"><span class="cursor"></span></span>`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function removeThinking() {
+    const el = document.getElementById('thinking-line');
+    if (el) el.remove();
+  }
+
+  async function checkStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (res.ok) {
+        statusDot.classList.remove('disconnected');
+        statusDot.classList.add('connected');
+        statusDot.title = 'connected to ollama';
+      } else {
+        throw new Error('not ok');
+      }
+    } catch (e) {
+      statusDot.classList.remove('connected');
+      statusDot.classList.add('disconnected');
+      statusDot.title = 'cannot reach ollama';
+    }
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    addLine('&gt;', 'user', text);
+    input.value = '';
+    sendBtn.disabled = true;
+    input.disabled = true;
+    addThinking();
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      removeThinking();
+
+      if (!res.ok) {
+        addLine('!', 'system', data.error || 'something went wrong', 'system');
+      } else {
+        addLine('$', 'agent', data.reply);
+      }
+    } catch (e) {
+      removeThinking();
+      addLine('!', 'system', 'could not reach the server: ' + e.message, 'system');
+    } finally {
+      sendBtn.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  resetBtn.addEventListener('click', async () => {
+    await fetch('/api/reset', { method: 'POST' });
+    log.innerHTML = '';
+    addLine('#', 'system', 'conversation reset.', 'system');
+  });
+
+  checkStatus();
+  setInterval(checkStatus, 10000);
+</script>
+
+</body>
+</html>

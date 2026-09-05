@@ -1,0 +1,5 @@
+ollama
+duckduckgo-search
+flask
+pyyaml
+openai

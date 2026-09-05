@@ -34,7 +34,7 @@ PROVIDER = os.environ.get("LLM_PROVIDER", "ollama").lower()  # "ollama" or "open
 # Model must support "tool calling". Good options (pull first):
 #   ollama pull llama3.1
 #   ollama pull qwen2.5
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 ollama_client = ollama.Client(host=OLLAMA_HOST)
 
